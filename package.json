@@ -40,6 +40,7 @@
     "test-typescript": "dtslint packages/react-native/types",
     "test": "jest",
     "trigger-react-native-release": "node ./scripts/releases-local/trigger-react-native-release.js",
+    "update-hermes": "node ./scripts/update-hermes.js",
     "update-lock": "npx yarn-deduplicate"
   },
   "workspaces": [
