@@ -14,13 +14,24 @@ const {ModuleResolutionKind} = require('typescript');
 
 export type BuildOptions = $ReadOnly<{
   // The target runtime to compile for.
-  target: 'node',
+  target:
+    | 'node'
+    // A special compile target aligning with the "react-native-noflow" exports
+    // condition. This entry point allows compatible native parsers (e.g. Bun
+    // and SWC) to consume React Native without Flow types. Output will be stored
+    // in `dist_noflow/`.
+    | 'noflow',
 
   // Whether to emit Flow definition files (.js.flow) (default: true).
   emitFlowDefs?: boolean,
 
   // Whether to emit TypeScript definition files (.d.ts) (default: false).
   emitTypeScriptDefs?: boolean,
+
+  // Source dir glob override (default: 'src/**/*'). This is intended to provide
+  // compatibility for the react-native package only. This setting is ignored
+  // unless using the 'noflow' compile target.
+  srcOverride?: string | null,
 }>;
 
 export type BuildConfig = $ReadOnly<{
@@ -57,9 +68,17 @@ const buildConfig: BuildConfig = {
       emitTypeScriptDefs: true,
       target: 'node',
     },
+    'react-native': {
+      srcOverride: 'Libraries/**/*.js,src/**/*.js,index.js',
+      target: 'noflow',
+    },
     'react-native-compatibility-check': {
       emitTypeScriptDefs: true,
       target: 'node',
+    },
+    'virtualized-lists': {
+      srcOverride: 'Lists/**/*.js,Utilities/**/*.js,index.js',
+      target: 'noflow',
     },
   },
 };
@@ -67,6 +86,7 @@ const buildConfig: BuildConfig = {
 const defaultBuildOptions = {
   emitFlowDefs: true,
   emitTypeScriptDefs: false,
+  srcOverride: null,
 };
 
 function getBuildOptions(
@@ -83,10 +103,10 @@ function getBabelConfig(
 ): BabelCoreOptions {
   const {target} = getBuildOptions(packageName);
 
-  switch (target) {
-    case 'node':
-      return require('./babel/node.config.js');
-  }
+  return match (target) {
+    'node' => require('./babel/node.config.js'),
+    'noflow' => require('./babel/noflow.config.js'),
+  };
 }
 
 function getTypeScriptCompilerOptions(
