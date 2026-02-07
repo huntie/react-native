@@ -8,6 +8,7 @@
  * @format
  */
 
+import type {ExtensionsConfig} from './devtools-extensions/ExtensionsConfig';
 import type {CreateCustomMessageHandlerFn} from './inspector-proxy/CustomMessageHandler';
 import type {BrowserLauncher} from './types/BrowserLauncher';
 import type {EventReporter, ReportableEvent} from './types/EventReporter';
@@ -16,7 +17,10 @@ import type {Logger} from './types/Logger';
 import type {ReadonlyURL} from './types/ReadonlyURL';
 import type {NextHandleFunction} from 'connect';
 
+import validateExtensionsConfig from './devtools-extensions/validateExtensionsConfig';
 import InspectorProxy from './inspector-proxy/InspectorProxy';
+import extensionsAssetsMiddleware from './middleware/extensionsAssetsMiddleware';
+import extensionsConfigMiddleware from './middleware/extensionsConfigMiddleware';
 import openDebuggerMiddleware from './middleware/openDebuggerMiddleware';
 import DefaultBrowserLauncher from './utils/DefaultBrowserLauncher';
 import reactNativeDebuggerFrontendPath from '@react-native/debugger-frontend';
@@ -47,6 +51,17 @@ type Options = Readonly<{
    * This is an unstable API with no semver guarantees.
    */
   unstable_eventReporter?: EventReporter,
+
+  /**
+   * Optional configuration for loading React Native DevTools extensions.
+   *
+   * Extensions allow registration of custom DevTools panels, supporting a
+   * heavily reduced subset of the Chrome Extensions API. Integrators should
+   * consult the 3P Extensions API RFC and/or source code for more details.
+   *
+   * This is an unstable API with no semver guarantees.
+   */
+  unstable_extensionsConfig?: ExtensionsConfig,
 
   /**
    * The set of experimental features to enable.
@@ -82,6 +97,7 @@ export default function createDevMiddleware({
   // $FlowFixMe[incompatible-type]
   unstable_browserLauncher = DefaultBrowserLauncher,
   unstable_eventReporter,
+  unstable_extensionsConfig,
   unstable_experiments: experimentConfig = {},
   unstable_customInspectorMessageHandler,
   unstable_trackInspectorProxyEventLoopPerf = false,
@@ -89,6 +105,10 @@ export default function createDevMiddleware({
   const normalizedServerBaseUrl: ReadonlyURL = new URL(serverBaseUrl);
 
   const experiments = getExperiments(experimentConfig);
+  const extensions = validateExtensionsConfig(
+    unstable_extensionsConfig,
+    logger,
+  );
   const eventReporter = createWrappedEventReporter(
     unstable_eventReporter,
     logger,
@@ -117,6 +137,10 @@ export default function createDevMiddleware({
       }),
     )
     .use(
+      '/debugger-frontend/embedder-static/extensionsConfig.js',
+      extensionsConfigMiddleware(extensions),
+    )
+    .use(
       '/debugger-frontend/embedder-static/embedderScript.js',
       (_req, res) => {
         res.setHeader('Content-Type', 'application/javascript');
@@ -129,6 +153,7 @@ export default function createDevMiddleware({
         fallthrough: false,
       }),
     )
+    .use('/devtools-extensions', extensionsAssetsMiddleware(extensions))
     .use((...args) => inspectorProxy.processRequest(...args));
 
   return {

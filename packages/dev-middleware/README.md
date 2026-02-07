@@ -76,6 +76,14 @@ Open the JavaScript debugger for a given CDP target. Must be provided with one o
     curl -X POST 'http://localhost:8081/open-debugger?target=<targetId>'
 </details>
 
+#### GET `/extensionsConfig.js` (EXPERIMENTAL)
+
+See [Extensions support (EXPERIMENTAL)](#extensions-support-experimental).
+
+#### GET `/devtools-extensions/<extension-id>/<resource>` (EXPERIMENTAL)
+
+See [Extensions support (EXPERIMENTAL)](#extensions-support-experimental).
+
 ### WebSocket endpoints
 
 <small>`DevMiddlewareAPI.websocketEndpoints`</small>
@@ -87,6 +95,32 @@ WebSocket handler for registering device connections.
 #### `/inspector/debug`
 
 WebSocket handler that proxies CDP messages to/from the corresponding device.
+
+## Extensions support (EXPERIMENTAL)
+
+`createDevMiddleware()` accepts an `unstable_extensionsConfig` option for loading custom DevTools panel extensions into React Native DevTools, supporting a reduced subset of the Chrome Extensions API.
+
+```js
+createDevMiddleware({
+  ...,
+  unstable_extensionsConfig: {
+    extensions: [
+      {
+        name: 'My Extension',
+        packageName: '@company/devtools-extension',
+        enabled: true,
+        basePath: '/absolute/path/to/extension',
+        devtoolsPage: 'panel.html',
+        manifestPath: 'manifest.json',
+      },
+    ],
+  },
+});
+```
+
+Each extension must include a Chrome Extensions `manifest.json` (manifest version 2 or 3) including a `devtools_page` entry point at the specified paths.
+
+Extension assets are served under `/devtools-extensions/<extension-id>/`, where `<extension-id>` is derived from `packageName` (e.g. `@company/devtools-extension` becomes `company-devtools-extension`).
 
 ## Experimental features
 
