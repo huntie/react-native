@@ -29,7 +29,7 @@ export default function validateExtensionsConfig(
     extensions: extensions.filter(ext => {
       if (seenPackageNames.has(ext.packageName)) {
         logger?.error(
-          'Extension "%s" skipped: duplicate packageName "%s"',
+          'DevTools extension "%s" skipped: duplicate packageName "%s"',
           ext.name,
           ext.packageName,
         );
@@ -39,7 +39,7 @@ export default function validateExtensionsConfig(
 
       if (!fs.existsSync(ext.basePath)) {
         logger?.error(
-          'Extension "%s" skipped: basePath does not exist: %s',
+          'DevTools extension "%s" skipped: basePath does not exist: %s',
           ext.name,
           ext.basePath,
         );
@@ -49,7 +49,7 @@ export default function validateExtensionsConfig(
       const manifestFullPath = path.join(ext.basePath, ext.manifestPath);
       if (!fs.existsSync(manifestFullPath)) {
         logger?.error(
-          'Extension "%s" skipped: manifest not found at: %s',
+          'DevTools extension "%s" skipped: manifest not found at: %s',
           ext.name,
           manifestFullPath,
         );
@@ -63,7 +63,7 @@ export default function validateExtensionsConfig(
           manifest.manifest_version !== 3
         ) {
           logger?.error(
-            'Extension "%s" skipped: unsupported manifest_version %s (expected 2 or 3)',
+            'DevTools extension "%s" skipped: unsupported manifest_version %s (expected 2 or 3)',
             ext.name,
             String(manifest.manifest_version),
           );
@@ -71,7 +71,7 @@ export default function validateExtensionsConfig(
         }
       } catch (e) {
         logger?.error(
-          'Extension "%s" skipped: failed to read manifest: %s',
+          'DevTools extension "%s" skipped: failed to read manifest: %s',
           ext.name,
           (e as Error).message,
         );
@@ -81,7 +81,7 @@ export default function validateExtensionsConfig(
       const devtoolsPagePath = path.join(ext.basePath, ext.devtoolsPage);
       if (!fs.existsSync(devtoolsPagePath)) {
         logger?.error(
-          'Extension "%s" skipped: devtools page not found at: %s',
+          'DevTools extension "%s" skipped: devtools page not found at: %s',
           ext.name,
           devtoolsPagePath,
         );

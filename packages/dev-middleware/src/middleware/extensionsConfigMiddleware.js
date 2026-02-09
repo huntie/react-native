@@ -8,24 +8,29 @@
  * @format
  */
 
-import type {ExtensionsConfig} from '../devtools-extensions/ExtensionsConfig';
+import type {Extensions} from '../devtools-extensions/ExtensionsConfig';
+import type {ReadonlyURL} from '../types/ReadonlyURL';
 import type {NextHandleFunction} from 'connect';
 
 import sanitizePackageNameForUrl from '../utils/sanitizePackageNameForUrl';
 
 const extensionsConfigTemplate = require('../devtools-extensions/extensionsConfig-template');
 
+type Options = Readonly<{
+  serverBaseUrl: ReadonlyURL,
+  extensionsConfig: Extensions,
+}>;
+
 /**
  * Serves the `extensionsConfig.js` script, which will be read by the DevTools
  * frontend to load configured user extensions.
  */
-export default function extensionsConfigMiddleware(
-  extensionsConfig: ?ExtensionsConfig,
-): NextHandleFunction {
+export default function extensionsConfigMiddleware({
+  serverBaseUrl,
+  extensionsConfig: {extensions},
+}: Options): NextHandleFunction {
   return (_req, res) => {
     res.setHeader('Content-Type', 'application/javascript');
-
-    const extensions = extensionsConfig?.extensions ?? [];
 
     if (extensions.length === 0) {
       res.end('');
@@ -38,10 +43,12 @@ export default function extensionsConfigMiddleware(
           .filter(ext => ext.enabled)
           .map(ext => ({
             name: ext.name,
-            startPage:
+            startPage: new URL(
               `/devtools-extensions/${sanitizePackageNameForUrl(ext.packageName)}` +
-              '/' +
-              ext.devtoolsPage,
+                '/' +
+                ext.devtoolsPage,
+              serverBaseUrl,
+            ).toString(),
           })),
       }),
     );

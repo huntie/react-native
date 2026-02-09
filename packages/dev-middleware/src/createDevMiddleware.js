@@ -53,17 +53,6 @@ type Options = Readonly<{
   unstable_eventReporter?: EventReporter,
 
   /**
-   * Optional configuration for loading React Native DevTools extensions.
-   *
-   * Extensions allow registration of custom DevTools panels, supporting a
-   * heavily reduced subset of the Chrome Extensions API. Integrators should
-   * consult the 3P Extensions API RFC and/or source code for more details.
-   *
-   * This is an unstable API with no semver guarantees.
-   */
-  unstable_extensionsConfig?: ExtensionsConfig,
-
-  /**
    * The set of experimental features to enable.
    *
    * This is an unstable API with no semver guarantees.
@@ -77,6 +66,17 @@ type Options = Readonly<{
    * This is an unstable API with no semver guarantees.
    */
   unstable_customInspectorMessageHandler?: CreateCustomMessageHandlerFn,
+
+  /**
+   * Optional configuration for loading React Native DevTools extensions.
+   *
+   * Extensions allow registration of custom DevTools panels, supporting a
+   * heavily reduced subset of the Chrome Extensions API. Integrators should
+   * consult the 3P Extensions API RFC and/or source code for more details.
+   *
+   * This is an unstable API with no semver guarantees.
+   */
+  unstable_extensionsConfig?: ExtensionsConfig,
 
   /**
    * Whether to measure the event loop performance of inspector proxy and log report it via the event reporter.
@@ -97,9 +97,9 @@ export default function createDevMiddleware({
   // $FlowFixMe[incompatible-type]
   unstable_browserLauncher = DefaultBrowserLauncher,
   unstable_eventReporter,
-  unstable_extensionsConfig,
   unstable_experiments: experimentConfig = {},
   unstable_customInspectorMessageHandler,
+  unstable_extensionsConfig,
   unstable_trackInspectorProxyEventLoopPerf = false,
 }: Options): DevMiddlewareAPI {
   const normalizedServerBaseUrl: ReadonlyURL = new URL(serverBaseUrl);
@@ -137,8 +137,11 @@ export default function createDevMiddleware({
       }),
     )
     .use(
-      '/debugger-frontend/embedder-static/extensionsConfig.js',
-      extensionsConfigMiddleware(extensions),
+      '/debugger-frontend/embedder-runtime/extensionsConfig.js',
+      extensionsConfigMiddleware({
+        serverBaseUrl: normalizedServerBaseUrl,
+        extensionsConfig: extensions,
+      }),
     )
     .use(
       '/debugger-frontend/embedder-static/embedderScript.js',
