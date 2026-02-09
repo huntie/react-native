@@ -16,11 +16,19 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.js",
+    "./extension-api": {
+      "types": "./src/extension-api/ExtensionAPIReactNative.d.ts",
+      "default": null
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
     "exports": {
       ".": "./dist/index.js",
+      "./extension-api": {
+        "types": "./dist/extension-api/ExtensionAPIReactNative.d.ts",
+        "default": null
+      },
       "./package.json": "./package.json"
     }
   },
