@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @generated SignedSource<<ff39edecf287d3fe3638da2f71e6bd1c>>
+ * @generated SignedSource<<68bc3eb0a06150f858a5186e9ea3e6f6>>
  * @flow strict
  * @noformat
  */
@@ -109,6 +109,7 @@ export type ReactNativeFeatureFlags = Readonly<{
   fuseboxFrameRecordingEnabled: Getter<boolean>,
   fuseboxNetworkInspectionEnabled: Getter<boolean>,
   fuseboxScreenshotCaptureEnabled: Getter<boolean>,
+  fuseboxWebSocketEventsEnabled: Getter<boolean>,
   optimizedAnimatedPropUpdates: Getter<boolean>,
   overrideBySynchronousMountPropsAtMountingAndroid: Getter<boolean>,
   perfIssuesEnabled: Getter<boolean>,
@@ -451,6 +452,10 @@ export const fuseboxNetworkInspectionEnabled: Getter<boolean> = createNativeFlag
  * Enable Page.captureScreenshot CDP method support in the React Native DevTools CDP backend. This flag is global and should not be changed across React Host lifetimes.
  */
 export const fuseboxScreenshotCaptureEnabled: Getter<boolean> = createNativeFlagGetter('fuseboxScreenshotCaptureEnabled', false);
+/**
+ * Enable reporting of WebSocket network events (`Network.webSocket*` CDP events) to the React Native DevTools CDP backend. Requires `fuseboxNetworkInspectionEnabled`.
+ */
+export const fuseboxWebSocketEventsEnabled: Getter<boolean> = createNativeFlagGetter('fuseboxWebSocketEventsEnabled', false);
 /**
  * When enabled, uses optimized platform-specific paths to apply animated props synchronously. On Android, this uses a batched int/double buffer protocol with a single JNI call. On iOS, this passes AnimatedProps directly through the delegate chain and applies them via cloneProps, avoiding the folly::dynamic round-trip.
  */
