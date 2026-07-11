@@ -419,6 +419,180 @@ TEST_P(NetworkReporterTest, testCompleteNetworkFlow) {
                                 })");
 }
 
+TEST_P(NetworkReporterTest, testCompleteRedirectFlow) {
+  InSequence s;
+  this->expectMessageFromPage(JsonEq(R"({
+                                          "id": 1,
+                                          "result": {}
+                                        })"));
+  this->toPage_->sendMessage(R"({
+                                  "id": 1,
+                                  "method": "Network.enable"
+                                })");
+
+  const std::string requestId = "redirect-flow-request";
+
+  // Step 1: Initial request
+  this->expectMessageFromPage(JsonParsed(AllOf(
+      AtJsonPtr("/method", "Network.requestWillBeSent"),
+      AtJsonPtr("/params/requestId", requestId),
+      AtJsonPtr("/params/request/url", "https://example.com/original"),
+      AtJsonPtr("/params/request/method", "GET"),
+      AtJsonPtr("/params/redirectHasExtraInfo", false))));
+
+  RequestInfo requestInfo;
+  requestInfo.url = "https://example.com/original";
+  requestInfo.httpMethod = "GET";
+  requestInfo.headers = Headers{{"Accept", "application/json"}};
+
+  NetworkReporter::getInstance().reportRequestStart(
+      requestId, requestInfo, 0, std::nullopt);
+
+  // Step 2: Connection timing
+  this->expectMessageFromPage(JsonParsed(AllOf(
+      AtJsonPtr("/method", "Network.requestWillBeSentExtraInfo"),
+      AtJsonPtr("/params/requestId", requestId),
+      AtJsonPtr("/params/connectTiming/requestTime", Gt(0)))));
+
+  NetworkReporter::getInstance().reportConnectionTiming(
+      requestId, requestInfo.headers);
+
+  // Step 3: Redirect response, reported with the follow-up request
+  this->expectMessageFromPage(JsonParsed(AllOf(
+      AtJsonPtr("/method", "Network.requestWillBeSent"),
+      AtJsonPtr("/params/requestId", requestId),
+      AtJsonPtr("/params/request/url", "https://example.com/redirected"),
+      AtJsonPtr("/params/request/method", "GET"),
+      AtJsonPtr("/params/redirectHasExtraInfo", true),
+      AtJsonPtr("/params/redirectResponse/url", "https://example.com/original"),
+      AtJsonPtr("/params/redirectResponse/status", 302),
+      AtJsonPtr("/params/redirectResponse/statusText", "Found"),
+      AtJsonPtr(
+          "/params/redirectResponse/headers/Location",
+          "https://example.com/redirected"))));
+
+  RequestInfo redirectedRequestInfo;
+  redirectedRequestInfo.url = "https://example.com/redirected";
+  redirectedRequestInfo.httpMethod = "GET";
+  redirectedRequestInfo.headers = requestInfo.headers;
+
+  ResponseInfo redirectResponse;
+  redirectResponse.url = "https://example.com/original";
+  redirectResponse.statusCode = 302;
+  redirectResponse.headers =
+      Headers{{"Location", "https://example.com/redirected"}};
+
+  NetworkReporter::getInstance().reportRequestStart(
+      requestId, redirectedRequestInfo, 512, redirectResponse);
+
+  // Step 4: Final response received
+  this->expectMessageFromPage(JsonParsed(AllOf(
+      AtJsonPtr("/method", "Network.responseReceived"),
+      AtJsonPtr("/params/requestId", requestId),
+      AtJsonPtr("/params/type", "XHR"),
+      AtJsonPtr("/params/response/url", "https://example.com/redirected"),
+      AtJsonPtr("/params/response/status", 200))));
+
+  ResponseInfo responseInfo;
+  responseInfo.url = "https://example.com/redirected";
+  responseInfo.statusCode = 200;
+  responseInfo.headers = Headers{{"Content-Type", "application/json"}};
+
+  NetworkReporter::getInstance().reportResponseStart(
+      requestId, responseInfo, 1024);
+
+  // Step 5: Loading finished
+  this->expectMessageFromPage(JsonParsed(AllOf(
+      AtJsonPtr("/method", "Network.loadingFinished"),
+      AtJsonPtr("/params/requestId", requestId),
+      AtJsonPtr("/params/encodedDataLength", 1024))));
+
+  NetworkReporter::getInstance().reportResponseEnd(requestId, 1024);
+
+  this->expectMessageFromPage(JsonEq(R"({
+                                          "id": 2,
+                                          "result": {}
+                                        })"));
+  this->toPage_->sendMessage(R"({
+                                  "id": 2,
+                                  "method": "Network.disable"
+                                })");
+}
+
+TEST_P(NetworkReporterTest, testCompleteFailedRequestFlow) {
+  InSequence s;
+  this->expectMessageFromPage(JsonEq(R"({
+                                          "id": 1,
+                                          "result": {}
+                                        })"));
+  this->toPage_->sendMessage(R"({
+                                  "id": 1,
+                                  "method": "Network.enable"
+                                })");
+
+  const std::string requestId = "failed-flow-request";
+
+  // Step 1: Request will be sent
+  this->expectMessageFromPage(JsonParsed(AllOf(
+      AtJsonPtr("/method", "Network.requestWillBeSent"),
+      AtJsonPtr("/params/requestId", requestId),
+      AtJsonPtr("/params/request/url", "https://example.com/script.js"),
+      AtJsonPtr("/params/request/method", "GET"))));
+
+  RequestInfo requestInfo;
+  requestInfo.url = "https://example.com/script.js";
+  requestInfo.httpMethod = "GET";
+
+  NetworkReporter::getInstance().reportRequestStart(
+      requestId, requestInfo, 0, std::nullopt);
+
+  // Step 2: Connection timing
+  this->expectMessageFromPage(JsonParsed(AllOf(
+      AtJsonPtr("/method", "Network.requestWillBeSentExtraInfo"),
+      AtJsonPtr("/params/requestId", requestId),
+      AtJsonPtr("/params/connectTiming/requestTime", Gt(0)))));
+
+  NetworkReporter::getInstance().reportConnectionTiming(
+      requestId, std::nullopt);
+
+  // Step 3: Response received (sets the stored resource type)
+  this->expectMessageFromPage(JsonParsed(AllOf(
+      AtJsonPtr("/method", "Network.responseReceived"),
+      AtJsonPtr("/params/requestId", requestId),
+      AtJsonPtr("/params/type", "Script"),
+      AtJsonPtr("/params/response/status", 200),
+      AtJsonPtr("/params/response/mimeType", "text/javascript"))));
+
+  ResponseInfo responseInfo;
+  responseInfo.url = "https://example.com/script.js";
+  responseInfo.statusCode = 200;
+  responseInfo.headers = Headers{{"Content-Type", "text/javascript"}};
+
+  NetworkReporter::getInstance().reportResponseStart(
+      requestId, responseInfo, 2048);
+
+  // Step 4: Request fails mid-response. Unlike a request that fails before
+  // any response, the reported type reflects the received resource type.
+  this->expectMessageFromPage(JsonParsed(AllOf(
+      AtJsonPtr("/method", "Network.loadingFailed"),
+      AtJsonPtr("/params/requestId", requestId),
+      AtJsonPtr("/params/timestamp", Gt(0)),
+      AtJsonPtr("/params/type", "Script"),
+      AtJsonPtr("/params/errorText", "net::ERR_FAILED"),
+      AtJsonPtr("/params/canceled", false))));
+
+  NetworkReporter::getInstance().reportRequestFailed(requestId, false);
+
+  this->expectMessageFromPage(JsonEq(R"({
+                                          "id": 2,
+                                          "result": {}
+                                        })"));
+  this->toPage_->sendMessage(R"({
+                                  "id": 2,
+                                  "method": "Network.disable"
+                                })");
+}
+
 TEST_P(NetworkReporterTest, testGetResponseBodyWithBase64) {
   InSequence s;
   this->expectMessageFromPage(JsonEq(R"({
