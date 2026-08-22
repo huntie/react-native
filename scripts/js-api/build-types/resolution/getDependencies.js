@@ -12,6 +12,7 @@ import type {DependencyContext} from './simpleResolve';
 import type {ParseResult} from 'flow-transform/dist/transform/parse';
 
 const resolveTypeInputFile = require('./resolveTypeInputFile');
+const {shouldExpandDependency} = require('./reactPrivateInterface');
 const simpleResolve = require('./simpleResolve');
 const debug = require('debug')('build-types:resolution');
 const {traverse} = require('flow-transform/dist/traverse/traverse');
@@ -82,7 +83,14 @@ async function getDependencies(
       );
 
       if (resolved != null) {
-        dependencies.add(resolveTypeInputFile(resolved) ?? resolved);
+        const dependency = resolveTypeInputFile(resolved) ?? resolved;
+        if (!shouldExpandDependency(filePath, dependency)) {
+          debug(
+            `Skipping feature-flags dependency from react-private-interface: '${importPath}' in ${filePath}`,
+          );
+          return;
+        }
+        dependencies.add(dependency);
       }
     }),
   );

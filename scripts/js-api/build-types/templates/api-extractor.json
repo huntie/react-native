@@ -8,8 +8,7 @@
         "compilerOptions": {
           "lib": ["es2020"],
           "types": [],
-          "moduleResolution": "bundler",
-          "customConditions": ["react-native-strict-api"]
+          "moduleResolution": "bundler"
         }
       }
     },

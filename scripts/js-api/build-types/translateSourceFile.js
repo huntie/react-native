@@ -13,6 +13,9 @@ import type {ParseResult} from 'flow-transform/dist/transform/parse';
 import type {TransformASTResult} from 'flow-transform/dist/transform/transformAST';
 
 const getDependencies = require('./resolution/getDependencies');
+const {
+  isReactPrivateInterfaceFile,
+} = require('./resolution/reactPrivateInterface');
 const applyBabelTransformsSeq = require('./utils/applyBabelTransformsSeq');
 const translate = require('flow-api-translator');
 const {parse, print} = require('flow-transform');
@@ -28,12 +31,22 @@ const preTransforms: Array<PreTransformFn> = [
   require('./transforms/flow/reattachDocComments'),
   require('./transforms/flow/ensureNoUnprefixedProps'),
 ];
-const postTransforms = (filePath: string): Array<PluginObj<unknown>> => [
-  require('./transforms/typescript/convertTypeAliasesToInterfaces'),
-  require('./transforms/typescript/ensureUndefinedOnOptionalMembers'),
-  require('./transforms/typescript/replaceProtectedConstructors'),
-  require('./transforms/typescript/replaceDefaultExportName')(filePath),
-];
+const postTransforms = (filePath: string): Array<PluginObj<unknown>> => {
+  const transforms: Array<PluginObj<unknown>> = [
+    require('./transforms/typescript/convertTypeAliasesToInterfaces'),
+    require('./transforms/typescript/ensureUndefinedOnOptionalMembers'),
+    require('./transforms/typescript/replaceProtectedConstructors'),
+    require('./transforms/typescript/replaceDefaultExportName')(filePath),
+  ];
+
+  if (isReactPrivateInterfaceFile(filePath)) {
+    transforms.push(
+      require('./transforms/typescript/stripReactPrivateInterfaceFeatureFlagsExports'),
+    );
+  }
+
+  return transforms;
+};
 const prettierOptions = {parser: 'babel'};
 const unsupportedFeatureRegex =
   /Unsupported feature: Translating ".*" is currently not supported/;

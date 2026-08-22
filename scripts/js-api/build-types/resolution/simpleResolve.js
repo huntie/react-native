@@ -10,6 +10,9 @@
 
 const {PACKAGES_DIR} = require('../../../shared/consts');
 const {getPackages} = require('../../../shared/monorepoUtils');
+const {
+  isReactPrivateInterfaceImport,
+} = require('./reactPrivateInterface');
 const {existsSync} = require('node:fs');
 const path = require('node:path');
 
@@ -36,6 +39,11 @@ async function simpleResolve(
       includeReactNative: true,
       includePrivate: false,
     });
+  }
+
+  // Runtime-only package export — not part of the generated type graph.
+  if (isReactPrivateInterfaceImport(importPath)) {
+    return null;
   }
 
   // Resolve exact '@react-native/<package>' import
