@@ -8,16 +8,17 @@
  * @format
  */
 
+import type {ContentInsets} from './components/RNTesterTabsNativeComponent';
 import type {RNTesterModuleInfo, ScreenTypes} from './types/RNTesterTypes';
 
 import ReportFullyDrawnView from '../ReportFullyDrawnView/ReportFullyDrawnView';
 import RNTesterModuleContainer from './components/RNTesterModuleContainer';
 import RNTesterModuleList from './components/RNTesterModuleList';
 import RNTesterNavBar, {navBarHeight} from './components/RNTesterNavbar';
+import RNTesterTabs from './components/RNTesterTabsNativeComponent';
 import {RNTesterThemeContext, themes} from './components/RNTesterTheme';
 import RNTTitleBar from './components/RNTTitleBar';
 import {title as PlaygroundTitle} from './examples/Playground/PlaygroundExample';
-import resolveExampleURL from './utils/resolveExampleURL';
 import RNTesterList from './utils/RNTesterList';
 import {
   RNTesterNavigationActionsType,
@@ -29,7 +30,7 @@ import {
   initialNavigationState,
 } from './utils/testerStateUtils';
 import * as React from 'react';
-import {useCallback, useEffect, useMemo, useReducer} from 'react';
+import {useCallback, useEffect, useMemo, useReducer, useState} from 'react';
 import {
   BackHandler,
   Button,
@@ -55,6 +56,30 @@ if (global.RN$Bridgeless === true && __DEV__) {
 
 // RNTester App currently uses in memory storage for storing navigation state
 
+// On iOS, the tabs are native, see RNTester/RNTesterTabsComponentView.mm
+const IOS_TABS = [
+  {
+    key: Screens.COMPONENTS,
+    title: 'Components',
+    systemImage: 'square.stack.3d.up',
+    testID: 'components-tab',
+  },
+  {
+    key: Screens.APIS,
+    title: 'APIs',
+    systemImage: 'curlybraces',
+    testID: 'apis-tab',
+  },
+  {
+    key: Screens.PLAYGROUNDS,
+    title: 'Playground',
+    systemImage: 'play.rectangle',
+    testID: 'playground-tab',
+  },
+];
+
+const NO_INSETS: ContentInsets = {top: 0, left: 0, bottom: 0, right: 0};
+
 type BackButton = ({onBack: () => void}) => React.Node;
 
 const RNTesterApp = ({
@@ -72,6 +97,7 @@ const RNTesterApp = ({
     initialNavigationState,
   );
   const colorScheme = useColorScheme();
+  const [contentInsets, setContentInsets] = useState<ContentInsets>(NO_INSETS);
 
   const {
     activeModuleKey,
@@ -156,13 +182,78 @@ const RNTesterApp = ({
   // Setup Linking event subscription
   const handleOpenUrlRequest = useCallback(
     ({url}: {url: string, ...}) => {
-      const target = resolveExampleURL(url);
-      if (target == null) {
+      // Supported URL pattern(s):
+      // *  rntester://example/<moduleKey>
+      // *  rntester://example/<moduleKey>/<exampleKey>
+      const match =
+        /^rntester(-legacy)?:\/\/example\/([a-zA-Z0-9_-]+)(?:\/([a-zA-Z0-9_-]+))?$/.exec(
+          url,
+        );
+      if (!match) {
+        console.warn(
+          `handleOpenUrlRequest: Received unsupported URL: '${url}'`,
+        );
         return;
       }
+
+      const rawModuleKey = match[2];
+      const exampleKey = match[3];
+
+      // For tooling compatibility, allow all these variants for each module key:
+      const validModuleKeys = [
+        rawModuleKey,
+        `${rawModuleKey}Index`,
+        `${rawModuleKey}Example`,
+        // $FlowFixMe[invalid-computed-prop]
+      ].filter(k => RNTesterList.Modules[k] != null);
+      if (validModuleKeys.length !== 1) {
+        if (validModuleKeys.length === 0) {
+          console.error(
+            `handleOpenUrlRequest: Unable to find requested module with key: '${rawModuleKey}'`,
+          );
+        } else {
+          console.error(
+            `handleOpenUrlRequest: Found multiple matching module with key: '${rawModuleKey}', unable to resolve`,
+          );
+        }
+        return;
+      }
+
+      const resolvedModuleKey = validModuleKeys[0];
+      // $FlowFixMe[invalid-computed-prop]
+      const exampleModule = RNTesterList.Modules[resolvedModuleKey];
+
+      if (exampleKey != null) {
+        const validExampleKeys = exampleModule.examples.filter(
+          e => e.name === exampleKey,
+        );
+        if (validExampleKeys.length !== 1) {
+          if (validExampleKeys.length === 0) {
+            console.error(
+              `handleOpenUrlRequest: Unable to find requested example with key: '${exampleKey}' within module: '${resolvedModuleKey}'`,
+            );
+          } else {
+            console.error(
+              `handleOpenUrlRequest: Found multiple matching example with key: '${exampleKey}' within module: '${resolvedModuleKey}', unable to resolve`,
+            );
+          }
+          return;
+        }
+      }
+
+      console.log(
+        `handleOpenUrlRequest: Opening module: '${resolvedModuleKey}', example: '${
+          exampleKey || 'null'
+        }'`,
+      );
+
       dispatch({
         type: RNTesterNavigationActionsType.EXAMPLE_OPEN_URL_REQUEST,
-        data: target,
+        data: {
+          key: resolvedModuleKey,
+          title: exampleModule.title || resolvedModuleKey,
+          exampleKey,
+        },
       });
     },
     [dispatch],
@@ -210,36 +301,77 @@ const RNTesterApp = ({
   // Hide chrome if we don't have much screen space and are showing UI for tests
   const shouldHideChrome = isScreenTiny && hadDeepLink;
 
+  const titleBar = shouldHideChrome ? null : (
+    <RNTTitleBar
+      title={title}
+      theme={theme}
+      documentationURL={activeModule?.documentationURL}>
+      {activeModule && BackButtonComponent ? (
+        <BackButtonComponent onBack={handleBackPress} />
+      ) : undefined}
+    </RNTTitleBar>
+  );
+
+  const content = (
+    <View
+      style={StyleSheet.compose(styles.container, {
+        backgroundColor: theme.GroupedBackgroundColor,
+      })}>
+      {activeModule != null ? (
+        <RNTesterModuleContainer
+          module={activeModule}
+          example={activeModuleExample}
+          onExampleCardPress={handleModuleExampleCardPress}
+        />
+      ) : (
+        <RNTesterModuleList
+          sections={activeExampleList}
+          handleModuleCardPress={handleModuleCardPress}
+        />
+      )}
+    </View>
+  );
+
+  if (Platform.OS === 'ios') {
+    return (
+      <RNTesterThemeContext.Provider value={theme}>
+        <RNTesterTabs
+          style={styles.container}
+          tabs={IOS_TABS}
+          selectedTab={screen ?? Screens.COMPONENTS}
+          tabBarHidden={shouldHideChrome}
+          onTabPress={event => {
+            const tab = IOS_TABS.find(t => t.key === event.nativeEvent.key);
+            if (tab != null) {
+              handleNavBarPress({screen: tab.key});
+            }
+          }}
+          onContentInsetsChange={event => setContentInsets(event.nativeEvent)}>
+          <View
+            style={[
+              styles.container,
+              {
+                backgroundColor: theme.SystemBackgroundColor,
+                paddingTop: contentInsets.top,
+                paddingLeft: contentInsets.left,
+                paddingBottom: contentInsets.bottom,
+                paddingRight: contentInsets.right,
+              },
+            ]}>
+            {titleBar}
+            {content}
+          </View>
+        </RNTesterTabs>
+        <ReportFullyDrawnView />
+      </RNTesterThemeContext.Provider>
+    );
+  }
+
   return (
     <RNTesterThemeContext.Provider value={theme}>
       {Platform.OS === 'android' ? <StatusBar barStyle="dark-content" /> : null}
-      {!shouldHideChrome && (
-        <RNTTitleBar
-          title={title}
-          theme={theme}
-          documentationURL={activeModule?.documentationURL}>
-          {activeModule && BackButtonComponent ? (
-            <BackButtonComponent onBack={handleBackPress} />
-          ) : undefined}
-        </RNTTitleBar>
-      )}
-      <View
-        style={StyleSheet.compose(styles.container, {
-          backgroundColor: theme.GroupedBackgroundColor,
-        })}>
-        {activeModule != null ? (
-          <RNTesterModuleContainer
-            module={activeModule}
-            example={activeModuleExample}
-            onExampleCardPress={handleModuleExampleCardPress}
-          />
-        ) : (
-          <RNTesterModuleList
-            sections={activeExampleList}
-            handleModuleCardPress={handleModuleCardPress}
-          />
-        )}
-      </View>
+      {titleBar}
+      {content}
       {!shouldHideChrome && (
         <View style={styles.bottomNavbar}>
           <RNTesterNavBar

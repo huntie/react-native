@@ -22,7 +22,7 @@ export const RNTesterNavigationActionsType = {
   NAVBAR_OPEN_MODULE_PRESS: 'NAVBAR_OPEN_MODULE_PRESS',
 } as const;
 
-export const getUpdatedRecentlyUsed = ({
+const getUpdatedRecentlyUsed = ({
   exampleType,
   key,
   recentlyUsed,
@@ -30,7 +30,7 @@ export const getUpdatedRecentlyUsed = ({
   exampleType: 'apis' | 'components' | null,
   key: string | null,
   recentlyUsed: ComponentList,
-}): NonNullable<ComponentList> => {
+}) => {
   const updatedRecentlyUsed = recentlyUsed
     ? {...recentlyUsed}
     : // $FlowFixMe[missing-empty-array-annot]

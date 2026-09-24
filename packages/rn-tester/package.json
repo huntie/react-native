@@ -54,6 +54,9 @@
       "components": {
         "RNTMyNativeView": {
           "className": "RNTMyNativeViewComponentView"
+        },
+        "RNTesterTabs": {
+          "className": "RNTesterTabsComponentView"
         }
       }
     }
